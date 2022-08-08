@@ -1,0 +1,583 @@
+#!/usr/bin/env bash
+
+. ./garudrecon.cfg
+
+
+if [[ $EUID -ne 0 ]]; then
+   echo "This script must be run as root" 
+   exit 1
+fi
+
+
+showhelp(){
+    banner
+    echo -e "${green}TARGET OPTIONS${reset}"
+    echo -e "   -d, --domain        Single Target domain (domain.com)"
+    echo -e ""
+    echo -e "${green}OPTIONS${reset}"
+    echo -e "   -f, --fullscan      All - Perform all checks and exploitations"
+    echo -e "   -p, --passive       Passive - Performs only passive steps"
+    echo -e "   -a, --active        Active - Performs only active steps"
+    echo -e "   -s, --subtakeover   Subtakeover - Performs only subtakeover steps"
+    echo -e "   -i, --enumips       Enumips - Performs only enumips steps"
+    echo -e "   -P, --portscan      Portscan - Performs only portscan steps"
+    echo -e "   -S, --subfilter     Portscan - Performs only portscan steps"
+    echo -e "   -v, --visualrecon   Portscan - Performs only portscan steps"
+    echo -e "   -c, --crawl         Portscan - Performs only portscan steps"
+    echo -e "   -g, --gfurl         Portscan - Performs only portscan steps"
+    echo -e "   -w, --wafchecks     Portscan - Performs only portscan steps"
+    echo -e "   -n, --nuclscan      Portscan - Performs only portscan steps"
+    echo -e "   -j, --jschecks      Portscan - Performs only portscan steps"
+    echo -e "   -W, --wordlistgen   Portscan - Performs only portscan steps"
+    echo -e ""
+    echo -e "${green}GENERAL OPTIONS${reset}"
+    echo -e "   -o, --output        Define output folder"
+    echo -e "   -h, --help          Help - Show this help"
+    echo -e ""
+    echo -e "${green}Optional Flags: ${reset}"
+    echo -e "   -s, --silent                Hide output in the terminal             ${yellow}Default: False${reset}"
+    echo -e "   -j, --json                  Store output in a single json file      ${yellow}Default: False${reset}"
+    echo -e ""
+    echo -e "${green}MASSHUNT OPTIONS${reset}"
+    echo -e "   -x  --xss                   Masshunt xss"
+    echo -e "   -r  --redirct           Masshunt openredirct"
+    echo -e ""
+    echo -e "${green}USAGE EXAMPLES${reset}"
+    echo -e "   ${blue}Passive subdomain scanning:${reset}"
+    echo -e "   $0 -d example.com -p"
+    echo -e ""
+    echo -e "   ${blue}Active subdomain scanning:${reset}"
+    echo -e "   $0 -d example.com -a"
+    echo -e ""
+}
+   
+
+
+###############################################################################################################
+############################################### SUBDOMAINS ####################################################
+###############################################################################################################
+
+subpassive(){
+    assetfinder --subs-only $domain | anew -q ./$domain/assetfinder.txt
+    subfinder -silent -d $domain -all -t $threads | anew -q ./$domain/subfinder.txt
+    findomain -t $domain -u ./$domain/findomain.txt | anew -q ./$domain/findomain.txt && rm -rf ./$domain/findomain.old.txt
+    sublist3r -d $domain -t $threads -v -o ./$domain/sublist3r.txt
+    amass enum -passive -d $domain -o ./$domain/amass.txt
+    # sudomy -d $domain --all | tee ./$domain/sudomy.txt
+    #echo $domain | waybackurls | unfurl -u domains | tee ./$domain/waybackurls.txt
+    gau --subs $domain --threads $threads | unfurl -u domains | anew -q ./$domain/gau_subs.txt
+    ctfr -d $domain | unfurl domains | anew -q ./$domain/ctfr.txt
+    crobat -s $domain | anew -q ./$domain/crobat.txt
+    knockpy $domain -th $threads --no-http-code 404 500 530 -o ./$domain/knock_result
+}
+
+
+subactive(){
+    ffuf -w $fuzzdb_wordlists -u https://FUZZ.$domain -t $threads -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.77 Safari/537.36" -mc 200 -r -v | grep "| URL |" | awk '{print $4}' | sed 's/^http[s]:\/\///g' | tee ./$domain/ffuf.txt
+    gobuster dns -d $domain -z -q -t $threads -w $gobuster_wordlists | awk '{print $2}' | tee ./$domain/gobuster.txt
+    amass enum  -src -ip -brute -min-for-recursive 2 -d $domain -o ./$domain/amass_passive.txt
+    chaos -d $domain
+    python3 ~/tools/github-subdomains.py -t $GITHUB_API_TOKEN -d $domain | anew -q ./$domain/github.txt
+}
+
+
+combinesub(){
+    cat ./$domain/assetfinder.txt | anew -q ./$domain/all_subdomain.txt
+    cat ./$domain/subfinder.txt | anew -q ./$domain/all_subdomain.txt
+    cat ./$domain/findomain.txt | anew -q ./$domain/all_subdomain.txt
+    cat ./$domain/sublist3r.txt | anew -q ./$domain/all_subdomain.txt
+    cat ./$domain/amass.txt | anew -q ./$domain/all_subdomain.txt
+    cat ./$domain/sudomy.txt | anew -q ./$domain/all_subdomain.txt
+    cat ./$domain/waybackurls.txt | anew -q ./$domain/all_subdomain.txt
+    cat ./$domain/gau_subs.txt | anew -q ./$domain/all_subdomain.txt
+    cat ./$domain/ctfr.txt | anew -q ./$domain/all_subdomain.txt
+    cat ./$domain/crobat.txt | anew -q ./$domain/all_subdomain.txt
+    cat ./$domain/ffuf.txt | anew -q ./$domain/all_subdomain.txt
+    cat ./$domain/gobuster.txt | anew -q ./$domain/all_subdomain.txt
+    cat ./$domain/amass_passive.txt | anew -q ./$domain/all_subdomain.txt
+    cat ./$domain/github.txt | anew -q ./$domain/all_subdomain.txt
+}
+
+dnsrecord(){
+    # dnsx -retry 3 -a -aaaa -cname -ns -ptr -mx -soa -resp -silent -l ./$domain/all_subdomain.txt | anew -q ./$domain/resolved_ips.txt
+    dnsx -l ./$domain/all_subdomain.txt -resp-only | anew ./$domain/resolved_ips.txt
+}
+
+#DNS RESOLVERS AND PREMUTATIONS
+dnsres(){
+    dnsgen ctfr.txt | anew -q ctfr3.txt
+    massdns -r $RESOLVERS -t A ./$domain/all_subdomain.txt | anew -q ./results.txt
+    dnsvalidator -tL https://public-dns.info/nameservers.txt -threads 200 -o ./resolvers.txt
+    puredns resolve ./$domain/all_subdomain.txt -r $dns_wordlists | anew -q ./puredns.txt
+
+#PREMUTATIONS
+    gotator -sub ./$domain/all_subdomain.txt -perm $permutations -depth 1 -numbers 10 -mindup -adv -md -t $threads -silent | anew -q ./gotator.txt
+}
+
+enum_ips(){
+    $TOOLS_PATH/massdns/bin/massdns -r ~/tools/resolvers.txt -q -t A -o S -w $IP_PATH/massdns.raw $SUB_PATH/final-subdomains.txt
+    cat $IP_PATH/massdns.raw | grep -e ' A ' |  cut -d 'A' -f 2 | tr -d ' ' > $IP_PATH/massdns.txt
+    cat $IP_PATH/*.txt | sort -V | uniq > $IP_PATH/final-ips.txt
+}
+
+
+
+filterIp(){
+    cloudflare="173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/12 172.64.0.0/13 131.0.72.0/22"
+    for ip in $(cat ./$domain/resolved_ips.txt); do
+    echo $ip | grepcidr "$cloudflare" >/dev/null && echo "${red} [!] $ip is protected by Cloudflare ${reset}" || echo "$ip" | anew -q ./$domain/afterremovecloudflare.txt
+    done
+
+    incapsula="199.83.128.0/21 198.143.32.0/19 149.126.72.0/21 103.28.248.0/22 45.64.64.0/22 185.11.124.0/22 192.230.64.0/18 107.154.0.0/16 45.60.0.0/16 45.223.0.0/16"
+    for ip in $(cat ./$domain/afterremovecloudflare.txt); do
+    echo $ip | grepcidr "$incapsula" >/dev/null && echo "${red} [!] $ip is protected by Incapsula ${reset}" || echo "$ip" | anew -q ./$domain/afterremoveincapsula.txt
+    done
+
+    sucuri="185.93.228.0/24 185.93.229.0/24 185.93.230.0/24 185.93.231.0/24 192.124.249.0/24 192.161.0.0/24 192.88.134.0/24 192.88.135.0/24 193.19.224.0/24 193.19.225.0/24 66.248.200.0/24 66.248.201.0/24 66.248.202.0/24 66.248.203.0/24"
+    for ip in $(cat ./$domain/afterremoveincapsula.txt); do
+    echo $ip | grepcidr "$sucuri" >/dev/null && echo "${red} [!] $ip is protected by Sucuri ${reset}" || echo "$ip" | anew -q ./$domain/afterremovesucuri.txt
+    done
+
+    akamai="104.101.221.0/24 184.51.125.0/24 184.51.154.0/24 184.51.157.0/24 184.51.33.0/24 2.16.36.0/24 2.16.37.0/24 2.22.226.0/24 2.22.227.0/24 2.22.60.0/24 23.15.12.0/24 23.15.13.0/24 23.209.105.0/24 23.62.225.0/24 23.74.29.0/24 23.79.224.0/24 23.79.225.0/24 23.79.226.0/24 23.79.227.0/24 23.79.229.0/24 23.79.230.0/24 23.79.231.0/24 23.79.232.0/24 23.79.233.0/24 23.79.235.0/24 23.79.237.0/24 23.79.238.0/24 23.79.239.0/24 63.208.195.0/24 72.246.0.0/24 72.246.1.0/24 72.246.116.0/24 72.246.199.0/24 72.246.2.0/24 72.247.150.0/24 72.247.151.0/24 72.247.216.0/24 72.247.44.0/24 72.247.45.0/24 80.67.64.0/24 80.67.65.0/24 80.67.70.0/24 80.67.73.0/24 88.221.208.0/24 88.221.209.0/24 96.6.114.0/24"
+    for ip in $(cat ./$domain/afterremovesucuri.txt); do
+    echo $ip | grepcidr "$akamai" >/dev/null && echo "${red} [!] $ip is protected by Akamai ${reset}" || echo "$ip" | anew -q ./$domain/final-ips.txt
+    done
+
+    #Removing Unnecassery files
+    rm -rf ./$domain/afterremovecloudflare.txt ./$domain/afterremoveincapsula.txt ./$domain/afterremovesucuri.txt
+}
+
+
+subtakeover(){
+    subjack -w ./$domain/all_subdomain.txt -t $threads -timeout 30 -o ./$domain/subdomain_takeover/results.txt -ssl -c /root/go/pkg/mod/github.com/haccer/subjack@v0.0.0-20201112041112-49c51e57deab/fingerprints.json
+    nuclei -l ./$domain/all_subdomain.txt -t ~/nuclei-templates/subdomain-takeover/ -o ./$domain/takeover_results.txt
+}
+
+
+corsscan(){
+    corscanner -v -t $threads -i ./$domain/all_subdomain.txt | tee final-cors.txt
+    python3 ~/tools/Corsy/corsy.py -u $domain | tee cors.txt
+}
+
+
+csrfscan(){
+    python3 ~/tools/Bolt/bolt.py -u $domainName -l 2 | tee -a csrf.txt
+}
+
+sqlscan(){
+    sqlmap -m sqli_paramaters.txt --batch --random-agent --level 1 | tee -a sqli.txt
+}
+
+portscan(){
+    rustscan
+    sudo masscan -p 1-65535 --rate 10000 --wait 0 --open -iL final-ips.txt -oX masscan.xml
+    # xsltproc -o $PSCAN_PATH/final-masscan.html $TOOLS_PATH/nmap-bootstrap.xsl $PSCAN_PATH/masscan.xml
+    # open_ports=$(cat $PSCAN_PATH/masscan.xml | grep portid | cut -d "\"" -f 10 | sort -n | uniq | paste -sd,)
+    naabu -retries 3 -r $RESOLVERS -l ./$domain/all_subdomain.txt -p $PORTS -c $threads -silent | anew -q ./$domain/ports/ports.txt
+    # sudo nmap -sVC -p $open_ports --open -v -T4 -Pn -iL $SUB_PATH/final-subdomains.txt -oX $PSCAN_PATH/nmap.xml
+    # xsltproc -o $PSCAN_PATH/final-nmap.html $PSCAN_PATH/nmap.xml
+
+
+    nmap -n -v -p $QUICK_PORTS $NMAP_OPTIONS -sS $TARGET -Pn | grep "open port" | tee $LOOT_DIR/ips/sniper-$OUT_FILE-tcp.txt 2>/dev/null
+    cat $LOOT_DIR/ips/sniper-$OUT_FILE-tcp.txt | grep open | grep on | awk '{print $6}' > $LOOT_DIR/ips/sniper-$OUT_FILE-tcpips.txt
+}
+
+
+
+#WEB PROBING AND SCREENSHOT
+subfilter(){
+    cat ./$domain/all_subdomain.txt | httprobe -c $threads -t 3000 | anew -q ./$domain/httprobe.txt
+    cat ./$domain/all_subdomain.txt | httpx -follow-host-redirects -random-agent -status-code -silent -retries 2 -title -web-server -tech-detect -location -o ./$domain/webs_info.txt
+    cat ./$domain/webs_info.txt | cut -d ' ' -f1 | grep "$domain" | sort -u | tee ./$domain/httpx.txt
+
+    # merge
+    cat ./$domain/httprobe.txt ./$domain/httpx.txt | anew -q ./$domain/alive.txt
+    #remove http
+    cat ./$domain/alive.txt | sed 's/http\(.?*\)*:\/\///g' | anew -q protoless_alive_subs.txt
+}
+
+
+nucleiscan(){
+    nuclei -l ./$domain/alive.txt -t ~/nuclei-templates/cves/* -c 200 -o ./$domain/nuclei_cves.txt
+    nuclei -l ./$domain/alive.txt -t ~/nuclei-templates/file/* -c 200 -o ./$domain/nuclei_files.txt
+    nuclei -l ./$domain/alive.txt -t ~/nuclei-templates/vulnerabilities/* -c 200 -o ./$domain/nuclei_vulnerabilities.txt  
+    nuclei -l ./$domain/alive.txt -t ~/nuclei-templates/dns/* -c 200 -o ./$domain/nuclei_dns.txt
+    nuclei -l ./$domain/alive.txt -t ~/nuclei-templates/misconfiguration/* -c 200 -o ./$domain/nuclei_misconfiguration.txt
+    nuclei -l ./$domain/alive.txt -t ~/nuclei-templates/takeovers/* -c 200 -o ./$domain/nuclei_takeovers.txt
+    nuclei -l ./$domain/alive.txt -t ~/nuclei-templates/technologies/* -c 200 -o ./$domain/nuclei_technologies.txt
+    nuclei -l ./$domain/alive.txt -t ~/nuclei-templates/token-spray/* -c 200 -o ./$domain/nuclei_token-spray.txt
+    nuclei -l ./$domain/alive.txt -t ~/nuclei-templates/exposures/tokens/* -c 200 -o ./$domain/nuclei_token.txt
+    nuclei -l ./$domain/alive.txt -t ~/nuclei-templates/miscellaneous/* -c 200 -o ./$domain/nuclei_miscellaneous.txt
+    nuclei -l ./$domain/alive.txt -t ~/nuclei-templates/default-logins/* -c 200 -o ./$domain/nuclei_default-logins.txt
+    nuclei -l ./$domain/alive.txt -t ~/nuclei-templates/exposed-panels/* -c 200 -o ./$domain/nuclei_exposed-panels.txt
+    nuclei -l ./$domain/alive.txt -t ~/nuclei-templates/exposures/* -c 200 -o ./$domain/nuclei_exposures.txt
+    nuclei -l ./$domain/alive.txt -t ~/nuclei-templates/fuzzing/* -c 200 -o ./$domain/nuclei_fuzzing.txt
+    nuclei -l ./$domain/alive.txt -t ~/nuclei-templates/headless/* -c 200 -o ./$domain/nuclei_headless.txt
+    nuclei -l ./$domain/alive.txt -t ~/nuclei-templates/helpers/* -c 200 -o ./$domain/nuclei_helpers.txt
+    nuclei -l ./$domain/alive.txt -t ~/nuclei-templates/iot/* -c 200 -o ./$domain/nuclei_iot.txt
+    nuclei -l ./$domain/alive.txt -t ~/nuclei-templates/network/* -c 200 -o ./$domain/nuclei_network.txt
+    nuclei -l ./$domain/alive.txt -t ~/nuclei-templates/ssl/* -c 200 -o ./$domain/nuclei_ssl.txt
+    nuclei -l ./$domain/alive.txt -t ~/nuclei-templates/workflows/* -c 200 -o ./$domain/nuclei_workflows.txt
+    nuclei -l ./$domain/alive.txt -t ~/nuclei-templates/cnvd/* -c 200 -o ./$domain/nuclei_cnvd.txt
+}
+
+cve_misconfigs(){
+    cat ./$domain/alive.txt | gofingerprint -fingerprints ./fingerprints.json
+    # sniper
+    # jaeles
+    # Vulners
+    # retire.js
+    # Intrigue Core
+}
+
+brokenlinks(){
+    for urls in $(cat ./$domain/alive.txt); do
+    blc $urls -ro | grep "BROKEN" | awk '{print $2}' | anew -q broken_links.txt
+    done
+}
+
+visualrecon(){
+    cat ./$domain/httprobe.txt | aquatone -http-timeout 10000 -scan-timeout 300 -threads $aquatone_threads -ports xlarge -out ./$domain/aquatone
+    EyeWitness -f ./$domain/httprobe.txt --web --proxy-ip 127.0.0.1 --proxy-port 8080 --proxy-type socks5 --timeout 120 --no-prompt -d ./$domain/eyewitness
+
+    gowitness file -f ./$domain/httprobe.txt
+    gowitness report serve -D gowitness.sqlite3 > /dev/null 2>&1 &
+
+    #httpstatus.io
+}
+
+
+#@> WEB CRAWLING
+crawl(){
+    cat ./$domain/alive.txt | gau | wordlistgen | anew -q ./$domain/gau_historical.txt
+    cat ./$domain/alive.txt | waybackurls | anew -q ./$domain/waybackurls.txt
+    cat ./$domain/alive.txt | hakrawler -u -d 5 -t $hakrawler_threads | anew -q ./$domain/hakrawler.txt
+    gobuster dir -k -t $gobuster_threads -w $gobuster_wordlists -u https://$domain -o ./$domain/gobuster.txt
+    cat ./$domain/all_subdomain.txt | gau --blacklist eot,jpg,jpeg,gif,css,tif,tiff,png,ttf,otf,woff,woff2,ico,svg,txt --retries 3 --threads $gau_threads | anew -q ./$domain/gau.txt
+    # github-endpoints -q -k -d $domain -t tokens_github.txt
+
+
+    gospider -s https://$domain --js -t 20 -d 2 --sitemap --robots -w -r | anew -q ./$domain/gospider_urls.txt
+    cat ./$domain/gospider_urls.txt | sed '/^.\{2048\}./d' | grep -Eo 'https?://[^ ]+' | sed 's/]$//' | unfurl -u domains | grep "$domain" | anew -q ./$domain/gospider.txt
+
+
+    python3 ~/tools/robotScraper/robotScraper.py -d $domain -s output_robot.txt
+
+    for urls in $(cat ./$domain/alive.txt); do
+    arjun -u $urls -oT parameters.txt
+    done
+
+# merge urls
+    cat ./$domain/gau.txt ./$domain/waybackurls.txt ./$domain/hakrawler.txt ./$domain/gobuster.txt | anew -q ./$domain/final_urls.txt
+}
+
+
+#FILTERING ENDPOINTS USING GF PATTERNS
+gfurl(){
+    cat  ./$domain/final_urls.txt | gf cors | anew -q ./$domain/cors.txt
+    cat  ./$domain/final_urls.txt | gf aws-keys | anew -q ./$domain/aws-keys.txt
+    cat  ./$domain/final_urls.txt | gf base64 | anew -q ./$domain/base64.txt
+    cat  ./$domain/final_urls.txt | gf s3-buckets | anew -q ./$domain/s3-buckets.txt
+    cat  ./$domain/final_urls.txt | gf idor | anew -q ./$domain/idor.txt
+    cat  ./$domain/final_urls.txt | gf lfi | anew -q ./$domain/lfi.txt
+    cat  ./$domain/final_urls.txt | gf rce | anew -q ./$domain/rce.txt
+    cat  ./$domain/final_urls.txt | gf redirect | anew -q ./$domain/redirct.txt
+    cat  ./$domain/final_urls.txt | gf sqli | anew -q ./$domain/sqli.txt
+    cat  ./$domain/final_urls.txt | gf ssrf | anew -q ./$domain/ssrf.txt
+    cat  ./$domain/final_urls.txt | gf ssti | anew -q ./$domain/ssti.txt
+    cat  ./$domain/final_urls.txt | gf interestingparams | anew -q ./$domain/interesting_parameters.txt
+    cat  ./$domain/final_urls.txt | gf interestingsubs | anew -q ./$domain/interesting_subs.txt
+    cat  ./$domain/final_urls.txt | gf xss | anew -q ./$domain/xss.txt
+    cat  ./$domain/final_urls.txt | gf interestingEXT | anew -q ./$domain/interesting_extensions.txt
+    cat  ./$domain/final_urls.txt | gf debug_logic | anew -q ./$domain/debug_logic.txt
+}
+
+
+
+#WEBSITE RECON
+wafchecks(){
+#WAF CHECKS
+    wafw00f -i websites.txt -o ./$domain/waf.txt
+
+#CMS
+    tr '\n' ',' < websites.txt > cms_test.txt 
+    cmseek -l cms_test.txt --batch -r | tee cms.txt
+}
+
+
+nuclscan(){
+    nuclei -h
+}
+
+
+vulnscan(){
+    crlfuzz -l database/lives.txt -c 50 -s | anew -q vulns/crlf.txt | notify -silent
+}
+
+
+#SEND TO BURPSUITE
+sendburp(){
+    cat ./$domain/all_urls.txt |  parallel -j50 -q curl -x http://127.0.0.1:8080 -w 'Status:%{http_code}\t Size:%{size_download}\t %{url_effective}\n' -o /dev/null -sk
+}
+
+
+jschecks(){
+    cat ./$domain/all_urls.txt | grep "\.js" | anew -q ./$domain/js-urls.txt
+    cat ./$domain/js-urls.txt | parallel -j50 -q curl -w 'Status:%{http_code}\t Size:%{size_download}\t %{url_effective}\n' -o /dev/null -sk | grep Status:200
+    cat ./$domain/all_urls.txt | python3 jsa.py 
+    cat ./$domain/js-urls.txt | subjs | httpx
+
+    # merge js
+    cat  ./$domain/final_urls.txt | grep ".js$" | anew -q ./$domain/js.txt
+    python3 ~/tools/SecretFinder/SecretFinder.py --input ./$domain/js.txt -o cli | anew -q ./$domain/secrefinder.txt
+    python3 ~/tools/jsearch/jsearch.py --u https://$1 -n starbucks | tee ./$domain/jsearch.txt
+    python3 ~/tools/LinkFinder/linkfinder.py -i $domain -o ./$domain/cli
+    python3 ~/tools/xnLinkFinder/xnLinkFinder.py -i tesla.com -v -d 2 -sp https://www.tesla.com
+
+    # jsparser
+    # getJS
+
+
+    cat ./$domain/final_urls.txt | grep -iE "\.js$" | httpx -silent | anew -q ./$domain/mixed_js_links.txt
+    cat ./$domain/alive.txt | httpx -silent | subjs | anew | anew -q ./$domain/subjs_links.txt
+    cat ./$domain/mixed_js_links.txt ./$domain/subjs_links.txt | anew -q ./$domain/final_js.txt
+}
+
+#FIND HIDDEN ENDPOINTS AND DIRECTORY
+fuzz(){
+    ffuf -w $fuzzdb_wordlists -u https://$domain/FUZZ -mc 200 all -fs 42 -c -v -t 100 | grep "| URL |" | awk '{print $4}' | anew -q ./$domain/ffuf.txt
+}
+
+
+#Custom Word List Generator
+wordlistgen(){
+    cewl -d 2 -m 5 -w docswords.txt $domain
+    cewl $domain -n -e -w emails.txt
+
+    cat urls.txt | unfurl -u keys 
+    cat urls.txt | unfurl -u values
+}
+
+#ip resolve
+# resolveDomains -d assetfinder.txt
+
+
+CloudEnum(){
+    key=$(echo $domain | sed s/".com"//)
+    python3 ~/tools/cloud_enum/cloud_enum.py -k $key --quickscan
+}
+
+
+githubrecon(){
+    python3 ~/tools/GitDorker/GitDorker.py -t $github_token -d ~/tools/GitDorker/Dorks/alldorksv3 -q $domain
+}
+
+
+vulnerabilities(){
+    python3 ~/tools/shcheck/shcheck.py https://$domain | grep 'Missing security header:\|There are\|--' | anew -q ./$domain/headers.txt
+}
+
+
+bucketrecon(){
+    python3 ~/tools/S3Scanner/s3scanner.py ./$domain/protoless_alive_subs.txt | grep "\[found\]" | cut -d" "  -f9- | anew -q ./$domain/s3_result.txt
+
+    for i in $(cat ./$domain/s3_result.txt); do aws s3 ls s3://$i; done;
+
+    python3 ~/tools/s3brute-master/amazon-s3-enum.py -w ~/tools/s3brute-master/BucketNames.txt -d $1
+    ./slurp-linux-amd64 domain --domain $TARGET | tee $LOOT_DIR/nmap/takeovers-$TARGET-s3-buckets.txt
+}
+
+
+params(){
+    for url in $(cat ./$domain/alive.txt); do
+    python3 ~/tools/ParamSpider/paramspider.py -d $url -o ./$domain/param_url.txt
+    done
+}
+
+
+contentdiscovery(){
+    for url in $(cat /home/ubuntu/Desktop/findom-xss/httprobe.txt); do
+    reg=$(echo $url | sed -e 's;https\?://;;' | sed -e 's;/.*$;;')
+    feroxbuster --url $url -w /usr/local/lib/python3.10/dist-packages/passwordmeter/res/common.txt -x php asp aspx jsp py txt conf config bak backup swp old db zip sql --depth 3 --threads 300 --output ./content_discovery_result.txt
+    done
+}
+
+
+Rapid7_FDNS(){
+    cat 2022-08-05-1659658263-fdns_a.json.gz | pigz -dc | grep ".target.org" | jq`
+}
+
+
+whois_info(){
+    whois $domain | grep 'Domain\|Registry\|Registrar\|Updated\|Creation\|Registrant\|Name Server\|DNSSEC:\|Status\|Whois Server\|Admin\|Tech' | grep -v 'the Data in VeriSign Global Registry'
+    nslookup $domain | tee nslookup.txt
+    python3 ~/tools/Asnlookup/asnlookup.py -o $company | tee -a asn.txt
+    asnip -t $TARGET | tee $LOOT_DIR/ips/asn-$TARGET.txt
+    whatweb -i ./$domain/alive.txt | tee whatweb.txt
+    python3 ~/tools/ssl-checker/ssl_checker.py -H $domainName | tee ssl.txt
+    curl -s -L --data "ip=$TARGET" https://2ip.me/en/services/information-service/provider-ip\?a\=act | grep -o -E '[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}/[0-9]{1,2}'
+}
+
+
+recon(){
+    amass intel -whois -d $domain | anew -q ./$domain/reverse-whois.txt
+    spyse -target $domain --subdomains | grep $domain | anew -q ./$domain/spyse.txt
+    python $PLUGINS_DIR/censys-subdomain-finder/censys_subdomain_finder.py --censys-api-id $censys_app_id --censys-api-secret $censys_api_secret $domain | egrep "\-" | awk '{print $2}' | egrep -v "Searching|Found" | anew -q ./$domain/censys.txt
+
+    shodan search "hostname:*.$TARGET" > $LOOT_DIR/domains/shodan-$TARGET.txt 2> /dev/null 
+    awk '{print $3}' $LOOT_DIR/domains/shodan-$TARGET.txt 2> /dev/null | grep -v "\;" > $LOOT_DIR/domains/domains-$TARGET-shodan-sorted.txt 2> /dev/null
+    awk '{print $1}' $LOOT_DIR/domains/shodan-$TARGET.txt 2> /dev/null >> $LOOT_DIR/ips/ips-all-unsorted.txt 2>/dev/null
+
+    curl -fsSL "https://dns.bufferover.run/dns?q=.$domain" | sed 's/\"//g' | cut -f2 -d "," | grep -v "<BR>" | sort -u | grep $domain | anew -q ./$domain/projectsonar.txt
+    curl -s "https://rapiddns.io/subdomain/$domain?full=1&down=1#exportData()" | grep -Eo "(http|https)://[a-zA-Z0-9./?=_-]*" | sort -u | grep "$domain" | cut -d\/ -f3 | anew -q ./$domain/rapiddns.txt
+
+    altdns -i /tmp/domain -w $INSTALL_DIR/wordlists/altdns.txt -o $LOOT_DIR/domains/domains-$TARGET-altdns.txt
+}
+
+fullscan(){
+    subpassive
+    subactive
+    subtakeover
+    enumips
+    portscan
+    subfilter
+    visualrecon
+    webcrawl
+    gfurl
+    wafchecks
+    nuclscan
+    jschecks
+    wordlistgen
+}
+
+
+
+###############################################################################################################
+########################################### MASS HUNT SCRIPT  #################################################
+###############################################################################################################
+
+
+masshuntxss(){
+cat ./$domain/all_subdomain.txt | waybackurls | grep "=" | egrep -iv ".(jpg|jpeg|gif|css|tif|tiff|png|ttf|woff|woff2|icon|pdf|svg|txt|js)" | gf xss | uro | qsreplace '<script>alert(1)</script>' | xsschecker
+}
+
+
+
+###############################################################################################################
+########################################### START SCRIPT  #####################################################
+###############################################################################################################
+
+
+
+PROGARGS=$(getopt -o ':d:f:pasiPSvcgwnjWxh::' --long 'domain:,fullscan:,passive,active,subtakeover,enum_ips,portscan,sub_filter,visualrecon,crawl,gfurl,wafchecks,nuclscan,jschecks,wordlistgen,xss,help' -n 'garudrecon' -- "$@")
+
+
+# Note the quotes around "$PROGARGS": they are essential!
+eval set -- "$PROGARGS"
+unset PROGARGS
+
+
+while true; do
+    case "$1" in
+        '-d'|'--domain')
+            domain=$2
+            shift 2
+            continue
+            ;;
+
+        '-f'|'--fullscan')
+            fullscan
+            shift 2
+            continue
+            ;;
+
+        '-p'|'--passive')
+            subpassive
+            shift 2
+            continue
+            ;;
+
+        '-a'|'--active')
+            subactive
+            shift 2
+            continue
+            ;;
+
+        '-s'|'--subtakeover')
+            subtakeover
+            shift 2
+            continue
+            ;;
+
+        '-i'|'--enumips')
+            enumips
+            shift 2
+            continue
+            ;;
+
+        '-P'|'--portscan')
+            portscan
+            shift 2
+            continue
+            ;;
+
+        '-S'|'--subfilter')
+            subfilter
+            shift 2
+            continue
+            ;;
+
+        '-v'|'--visualrecon')
+            visualrecon
+            shift 2
+            continue
+            ;;
+
+        '-c'|'--crawl')
+            crawl
+            shift 2
+            continue
+            ;;
+
+        '-g'|'--gfurl')
+            gfurl
+            shift 2
+            continue
+            ;;
+
+        '-w'|'--wafchecks')
+            wafchecks
+            shift 2
+            continue
+            ;;
+
+        '-n'|'--nuclscan')
+            nuclscan
+            shift 2
+            continue
+            ;;
+
+        '-j'|'--jschecks')
+            jschecks
+            shift 2
+            continue
+            ;;
+
+        '-W'|'--wordlistgen')
+            wordlistgen
+            shift 2
+            continue
+            ;;
+
+        '-x'|'--xss')
+            masshuntxss
+            shift 2
+            continue
+            ;;
+
+        '-h'|'--help')
+            showhelp
+            exit 1
+            ;;
+    esac
+done
