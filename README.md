@@ -3,7 +3,7 @@
 
 <h3>Under Construction.....</h3><br><br>
 
-GarudRecon is a simple script to install the most popular tools used while looking for vulnerabilities for a bug bounty program.
+GarudRecon is an automated reconnaissance that can be used to discover assets and scan for vulnerabilities using the latest open source tools and techniques
 
 
 
