@@ -21,6 +21,7 @@ gotools["cent"]="GO111MODULE=on go install github.com/xm1k3/cent@latest"
 gotools["crobat"]="go install github.com/cgboal/sonarsearch/cmd/crobat@latest"
 gotools["cf-check"]="go install github.com/dwisiswant0/cf-check@latest"
 gotools["chaos-client"]="go install -v github.com/projectdiscovery/chaos-client/cmd/chaos@latest"
+gotools["cero"]="go install github.com/glebarez/cero@latest"
 gotools["concurl"]="go install github.com/tomnomnom/concurl@latest"
 gotools["dnsx"]="go install -v github.com/projectdiscovery/dnsx/cmd/dnsx@latest"
 gotools["dalfox"]="go install github.com/hahwul/dalfox/v2@latest"
@@ -72,6 +73,7 @@ repos["AnalyticsRelationships"]="Josue87/AnalyticsRelationships"
 repos["asnlookup"]="yassineaboukir/asnlookup"
 repos["Blazy"]="s0md3v/Blazy"
 repos["bfac"]="mazen160/bfac"
+repos["brutespray"]="x90skysn3k/brutespray"
 repos["bucket-stream"]="eth0izzle/bucket-stream"
 repos["crtndstry"]="nahamsec/crtndstry"
 repos["cred_scanner"]="disruptops/cred_scanner"
@@ -95,8 +97,10 @@ repos["dnscan"]="rbsec/dnscan"
 repos["dnsrecon"]="darkoperator/dnsrecon"
 repos["dnsvalidator"]="vortexau/dnsvalidator"
 repos["EyeWitness"]="FortyNorthSecurity/EyeWitness"
+repos["fav-up"]="pielco11/fav-up"
 repos["GitTools"]="internetwache/GitTools"
 repos["git-secrets"]="awslabs/git-secrets"
+repos["gitdorks_go"]="damit5/gitdorks_go"
 repos["GCPBucketBrute"]="RhinoSecurityLabs/GCPBucketBrute"
 repos["GitDorker"]="obheda12/GitDorker"
 repos["JSParser"]="nahamsec/JSParser"
@@ -169,6 +173,7 @@ others["domain-finder"]="wget -P ~/tools_dir -N https://raw.githubusercontent.co
 others["dnsenum"]="sudo apt-get install -y dnsenum"
 others["dnsgen"]="pip3 install dnsgen"
 others["feroxbuster"]="wget -P ~/tools_dir -N https://github.com/epi052/feroxbuster/releases/download/2.7.1/x86_64-linux-feroxbuster.zip && unzip -o ~/tools/x86_64-linux-feroxbuster.zip && chmod +x feroxbuster && sudo mv -f feroxbuster /usr/bin/"
+others["findomain"]="wget -P ~/tools_dir -N https://github.com/Findomain/Findomain/releases/download/8.2.0/findomain-linux.zip && unzip -o ~/tools/findomain-linux.zip && chmod +x findomain && sudo mv -f findomain /usr/bin/"
 others["fdns"]="wget -P ~/tools_dir -N https://opendata.rapid7.com/sonar.fdns_v2/2022-08-05-1659658263-fdns_a.json.gz"
 others["git-dumper"]="pip install git-dumper"
 others["grepcidr"]="apt install grepcidr"
@@ -176,9 +181,11 @@ others["grepcidr"]="apt install grepcidr"
 others["gitrob"]="wget -P ~/tools -N https://github.com/michenriksen/gitrob/releases/download/v2.0.0-beta/gitrob_linux_amd64_2.0.0-beta.zip && unzip -o ~/tools/gitrob_linux_amd64_2.0.0-beta.zip && sudo mv -f gitrob /usr/bin/"
 others["github-subdomains"]="wget -P ~/tools_dir -N https://raw.githubusercontent.com/gwen001/github-search/master/github-subdomains.py"
 others["gf_patterns"]="go install github.com/tomnomnom/gf@latest && cp ~/go/bin/gf /usr/bin/ && mkdir ~/.gf && git clone https://github.com/Sherlock297/gf_patterns.git && cd gf_patterns && cp *.json ~/.gf"
+others["metafinder"]="pip3 install metafinder --upgrade"
 others["nmap"]="sudo apt-get install -y nmap"
 others["nuclei"]="go install -v github.com/projectdiscovery/nuclei/v2/cmd/nuclei@latest && sudo cp /root/go/bin/nuclei /usr/local/go/bin/ && nuclei -update-templates"
 others["parallel"]="sudo apt install -y parallel"
+others["pydictor"]="git clone --depth=1 --branch=master https://www.github.com/landgrey/pydictor.git ~/tools_dir/pydictor && cd pydictor && chmod +x pydictor.py"
 others["rustscan"]="wget -P ~/tools_dir -N https://github.com/RustScan/RustScan/releases/download/2.0.1/rustscan_2.0.1_amd64.deb && sudo dpkg -i ~/tools/rustscan_2.0.1_amd64.deb"
 others["sqlmap"]="git clone --depth 1 https://github.com/sqlmapproject/sqlmap.git ~/tools_dir/sqlmap-dev"
 others["Sudomy"]="git clone --recursive https://github.com/screetsec/Sudomy.git ~/tools_dir/Sudomy && cd Sudomy && python3 -m pip install -r requirements.txt"
@@ -199,7 +206,7 @@ install_apt(){
     eval sudo apt install chromium-browser -y $debug_std
     eval sudo apt install chromium -y $debug_std
     eval sudo apt install npm -y $debug_std
-    eval sudo apt install python3 python3-pip python3-shodan build-essential gcc cmake ruby whois git curl libpcap-dev wget zip python3-dev pv dnsutils libssl-dev libffi-dev libxml2-dev libxslt1-dev zlib1g-dev nmap jq apt-transport-https lynx tor medusa xvfb libxml2-utils procps bsdmainutils libdata-hexdump-perl aptitude -y $debug_std
+    eval sudo apt install python3 python3-pip python3-shodan build-essential gcc cmake ruby whois git curl libpcap-dev wget zip python3-dev pv dnsutils libssl-dev libffi-dev libxml2-dev libxslt1-dev zlib1g-dev nmap apt-transport-https lynx tor medusa xvfb libxml2-utils procps bsdmainutils libdata-hexdump-perl aptitude -y $debug_std
     eval sudo aptitude install jq pigz
 }
 
@@ -286,7 +293,7 @@ for repo in "${!repos[@]}"; do
         eval sudo python3 setup.py install $debug_std
     fi
     if [ "AnalyticsRelationships" = "$repo" ]; then
-        eval go build -ldflags "-s -w"
+        go build -ldflags "-s -w"
     elif [ "CeWL" = "$repo" ]; then
         eval sudo gem install bundler && bundle install $debug_std
     elif [ "datasploit" = "$repo" ]; then
@@ -307,8 +314,10 @@ for repo in "${!repos[@]}"; do
         eval cmake CMakeLists.txt && make $debug_std
     elif [ "uDork" = "$repo" ]; then
         eval chmod +x uDork.sh
-    # elif [ "Sn1per" = "$repo" ]; then
-    #     eval bash ./install.sh
+    elif [[ "dnsvalidator" = "$repo" ]]; then
+        eval dnsvalidator -tL https://public-dns.info/nameservers.txt -threads 200 -o $TOOLS_DIR/dnsvalidator_resolvers.txt
+    elif [[ "gitdorks_go" = "$repo" ]]; then
+        eval bash build.sh
     fi
     exit_status=$?
     if [ $exit_status -eq 0 ]
