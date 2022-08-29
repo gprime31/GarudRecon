@@ -3,10 +3,8 @@
 
 <h3>Under Construction.....</h3><br><br>
 
-<<<<<<< HEAD
+
 GarudRecon is an automated reconnaissance scanner that can be used to discover assets and scan for vulnerabilities using the latest open source tools and techniques.
-=======
-GarudRecon is an automated reconnaissance that can be used to discover assets and scan for vulnerabilities using the latest open source tools and techniques
 
 
 
