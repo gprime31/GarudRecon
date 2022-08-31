@@ -11,14 +11,14 @@ info:
 requests:
   - method: GET
     path:
-      - "{{BaseURL}}/search?query=<script>alert(1)</script>"
+      - "{{BaseURL}}<image/src/onerror=confirm(1)>"
 
     matchers-condition: and
     matchers:
       - type: word
         part: body
         words:
-          - '<script>alert(1)</script>'
+          - '<image/src/onerror=confirm(1)>'
         condition: and
 
       - type: status
