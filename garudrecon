@@ -100,7 +100,7 @@ sub_crt(){
 }
 
 subactive(){
-    ffuf -w $fuzzdb_wordlists -u https://FUZZ.$domain -t $threads -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.77 Safari/537.36" -mc 200 -r -v | grep "| URL |" | awk '{print $4}' | sed 's/^http[s]:\/\///g' | anew -q ./$domain/subdomain/ffuf.txt
+    ffuf -w $fuzzdb_wordlists -u https://FUZZ.$domain -t $threads -H $HEADER -mc 200 -r -v | grep "| URL |" | awk '{print $4}' | sed 's/^http[s]:\/\///g' | anew -q ./$domain/subdomain/ffuf.txt
     gobuster dns -d $domain -z -q -t $threads -w $gobuster_wordlists | awk '{print $2}' | anew -q ./$domain/subdomain/gobuster.txt
     amass enum  -src -ip -brute -min-for-recursive 2 -d $domain -o ./$domain/subdomain/amass_passive.txt
     # chaos -d $domain
@@ -205,6 +205,10 @@ portscan(){
     naabu -l final-ips.txt -p $PORTS -c $THREADS -silent | anew -q ./$domain/ports/ports.txt
 }
 
+cve(){
+    cat ./$domain/subdomain/all_subdomain.txt | dnsx -a -resp-only | nrich - > nrich_cves.txt
+}
+
 
 cred_brute(){
     python3 brutespray.py --file nmap.gnmap -U /usr/share/wordlist/user.txt -P /usr/share/wordlist/pass.txt --threads 5 --hosts 5
@@ -227,7 +231,7 @@ screenshot(){
 
 
 favicon(){
-# sdf
+cat ./$domain/alive-subdomain/all_alive.txt | python3 favfreak.py -o favfreak
 }
 
 

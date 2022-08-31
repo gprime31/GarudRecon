@@ -98,6 +98,7 @@ repos["dnsrecon"]="darkoperator/dnsrecon"
 repos["dnsvalidator"]="vortexau/dnsvalidator"
 repos["EyeWitness"]="FortyNorthSecurity/EyeWitness"
 repos["fav-up"]="pielco11/fav-up"
+repos["FavFreak"]="devanshbatham/FavFreak"
 repos["GitTools"]="internetwache/GitTools"
 repos["git-secrets"]="awslabs/git-secrets"
 repos["gitdorks_go"]="damit5/gitdorks_go"
@@ -184,6 +185,7 @@ others["gf_patterns"]="go install github.com/tomnomnom/gf@latest && cp ~/go/bin/
 others["metafinder"]="pip3 install metafinder --upgrade"
 others["nmap"]="sudo apt-get install -y nmap"
 others["nuclei"]="go install -v github.com/projectdiscovery/nuclei/v2/cmd/nuclei@latest && sudo cp /root/go/bin/nuclei /usr/local/go/bin/ && nuclei -update-templates"
+others["nrich"]="wget -P ~/tools_dir -N https://gitlab.com/api/v4/projects/33695681/packages/generic/nrich/0.3.0/nrich_0.3.0_amd64.deb && sudo dpkg -i ~/tools/nrich_0.3.0_amd64.deb"
 others["parallel"]="sudo apt install -y parallel"
 others["pydictor"]="git clone --depth=1 --branch=master https://www.github.com/landgrey/pydictor.git ~/tools_dir/pydictor && cd pydictor && chmod +x pydictor.py"
 others["rustscan"]="wget -P ~/tools_dir -N https://github.com/RustScan/RustScan/releases/download/2.0.1/rustscan_2.0.1_amd64.deb && sudo dpkg -i ~/tools/rustscan_2.0.1_amd64.deb"
@@ -243,7 +245,7 @@ fi
 
 
 echo -e "Checking Golang latest version"
-go_online_version=$(curl -L -s https://golang.org/VERSION?m=text -w "\n")
+go_online_version=$(curl -L -s https://golang.org/VERSION?m=text)
 go_system_version=$(go version | awk {'print $3'})
 
 
@@ -284,8 +286,8 @@ printf "${bblue}Installing repositories (${#repos[@]})${reset}\n\n"
 repos_step=0
 for repo in "${!repos[@]}"; do
     repos_step=$((repos_step + 1))
-    eval git clone https://github.com/${repos[$repo]} $tools_dir/$repo $debug_std
-    eval cd $tools_dir/$repo $debug_std
+    eval git clone https://github.com/${repos[$repo]} ~/tools/$repo $debug_std
+    eval cd ~/tools/$repo $debug_std
     if [ -s "requirements.txt" ]; then
         eval sudo pip3 install -r requirements.txt $debug_std
     fi
@@ -315,9 +317,12 @@ for repo in "${!repos[@]}"; do
     elif [ "uDork" = "$repo" ]; then
         eval chmod +x uDork.sh
     elif [[ "dnsvalidator" = "$repo" ]]; then
-        eval dnsvalidator -tL https://public-dns.info/nameservers.txt -threads 200 -o $TOOLS_DIR/dnsvalidator_resolvers.txt
+        eval dnsvalidator -tL https://public-dns.info/nameservers.txt -threads 200 -o ~/tools/dnsvalidator_resolvers.txt
     elif [[ "gitdorks_go" = "$repo" ]]; then
         eval bash build.sh
+    elif [[ "FavFreak" = "$repo" ]]; then
+        eval python3 -m pip install mmh3
+        eval pip3 install -r requirements.txt
     fi
     exit_status=$?
     if [ $exit_status -eq 0 ]
