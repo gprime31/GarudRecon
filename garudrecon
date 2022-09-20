@@ -541,7 +541,7 @@ whois_info(){
 }
 
 google_dorks(){
-    python3 ~tools/dorks_hunter/dorks_hunter.py -d $domain -o osint/dorks.txt
+    python3 ~/tools/dorks_hunter/dorks_hunter.py -d $domain -o osint/dorks.txt
 }
 
 
